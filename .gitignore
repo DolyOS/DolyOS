@@ -54,3 +54,4 @@ dkms.conf
 # My ignores
 test/*
 .vscode/*
+build/*
