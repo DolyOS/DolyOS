@@ -2,7 +2,7 @@ export HOME = $(shell pwd)
 export BUILD = $(HOME)/build
 
 all: build
-	$(MAKE) -C src/mbr all
+	$(MAKE) -C src/boot all
 
 build:
 	mkdir build

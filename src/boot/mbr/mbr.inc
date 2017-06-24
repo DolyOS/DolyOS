@@ -7,6 +7,7 @@ NEW_ADDRESS             equ         0x0600
 SECTION_ALIGNMENT       equ         0x01
 PARTITION_TABLE_OFFSET  equ         0x01BE
 BOOT_FLAG               equ         0x80
+BOOT_SIG_OFFSET         equ         0x1FE
 
 struc PartitionEntry
     .boot_flag      resb 1

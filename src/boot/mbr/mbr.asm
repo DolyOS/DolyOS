@@ -13,13 +13,12 @@ _init:
     xor ax, ax
     mov ds, ax
     mov es, ax
+    mov ss, ax
 
     ; Set up stack
-    mov ax, 0x07C0
-    mov ss, ax
-    xor sp, sp
+    mov sp, BASE_ADDRESS
 
-    ; Relocate the .MAIN section
+    ; Relocate the .main section
     push MAIN_SECTION_SIZE                 ; Size in bytes
     push BASE_ADDRESS + INIT_SECTION_SIZE  ; Source address
     push NEW_ADDRESS                       ; Destination address
@@ -62,16 +61,23 @@ _main:
     call _find_bootable_partition
     cmp  ax, ~0  ; Check if failed to find bootable partition
     je   .error
+    mov  si, ax  ; Save the adress of the bootable partition
+                 ; Also needs to set ds:si because the standard says so
 
-    ; Check for extended read
+    ; ; Check for extended read
+    ; push word [bp + 0x04]  ; drive_number
+    ; call _check_extended_read
+
     push word [bp + 0x04]  ; drive_number
-    call _check_extended_read
-
-    push word [bp + 0x04]
-    push parti1
-    call _normal_read
-    hlt
+    push si  ; Pointer to bootable partition
+    call _load_vbr
+    and  ax, ax
+    jz   .error  ; Check if failed to load VBR
     
+    mov dx, word [bp + 0x04]  ; drive_number
+                              ; Need to set dl to drive number because the standard says so
+    jmp 0x0000:BASE_ADDRESS   ; Jump to VBR, make sure CS = 0, IP = 0x7c00
+
  .error:
     int 0x18
 
@@ -131,8 +137,8 @@ _check_extended_read:
     pop  bp
     ret 0x02
 
-; bool __stdcall _normal_read(void *partition, short drive_number)
-_normal_read:
+; bool __stdcall _load_vbr(void *partition, short drive_number)
+_load_vbr:
     ; Setting stack frame
     push bp
     mov  bp, sp 
@@ -140,57 +146,40 @@ _normal_read:
     mov bx, [bp + 0x04]  ; partition
 
     ; Reset disk drive 
-    mov dx, [bp + 0x06]
+ .reset:
+    mov dx, word [bp + 0x06]  ; driver_number
     xor ax, ax
     int 0x13
+    jc  _epilogue
 
-    ; 
+    ; Read VBR sector form the disk
     mov ax, 0x0201  ; ah = read function, al = 1 sector
+    mov dx, word [bp + 0x06]  ; driver_number
     mov dh, PE(bx, starting_chs)  ; Head
-    mov cl, PE(bx, starting_chs + 1)  ; sector
-    mov ch, PE(bx, starting_chs + 2)  ; cylinder
+    mov cl, PE(bx, starting_chs + 1)  ; Sector
+    mov ch, PE(bx, starting_chs + 2)  ; Cylinder
     mov bx, BASE_ADDRESS  ; Address to load the sector into
     int 0x13
+    jc  _epilogue
+
+    mov bx, word [BASE_ADDRESS + BOOT_SIG_OFFSET]
+    cmp bx, BOOTLOADER_SIGNATURE
+    jz  _epilogue  ; Check the boot signature
+    stc  ; Set carry to signal failure
     
-    ; setc  
+_epilogue:
+    setnc al  ; ax = True if succeeded
 
     ; Clear stack frame
     mov  sp, bp
     pop  bp
     ret  0x04
 
-; void __stdcall _print_string(void *str)
-_print_string:
-    ; Setting stack frame
-    push bp
-    mov  bp, sp 
 
-    pusha  ; Save all registers
-
-    mov ax, 0x0E00 ; Print char function of int 0x10
-    cld            ; Clear direction flag (increase si) 
-    mov si, [bp + 0x04]
-
- .loop:
-    lodsb           ; load first char to al
-    test  al, al    ; Will set zero flag if zero
-    jz    .loop_out ; Break loop if NULL char
-
-    int 0x10      ; Print the char to the screen
-    jmp .loop     ; Loop as long the char isn't NULL
- .loop_out:
-
-    popa  ; Restore all registers
-
-    ; Clear stack frame
-    mov  sp, bp
-    pop  bp
-    ret  0x02
-
-times PARTITION_TABLE_OFFSET - INIT_SECTION_SIZE - ($ - $$) db 0x30  ; Padding with zero
+times PARTITION_TABLE_OFFSET - INIT_SECTION_SIZE - ($ - $$) nop  ; Padding
 parti1 istruc PartitionEntry
-    at PartitionEntry.boot_flag,      db 0x80
-    at PartitionEntry.starting_chs,    db 0x02, 0x03, 0x00 
+    at PartitionEntry.boot_flag,        db 0x80
+    at PartitionEntry.starting_chs,     db 0x00, 0x02, 0x00 
 iend
 istruc PartitionEntry 
 iend
