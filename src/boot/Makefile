@@ -7,6 +7,7 @@ $(BUILD):
 	
 $(BUILD)/boot: $(BUILD) 
 	$(MAKE) -C mbr all
+	$(MAKE) -C vbr all
 
 .PHONY: clean
 clean:

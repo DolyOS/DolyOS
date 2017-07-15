@@ -1,6 +1,6 @@
 %include "mbr.inc"
 
-bits 16
+bits 16  ; Running on real mode
 
 section .init vstart=BASE_ADDRESS align=SECTION_ALIGNMENT
 _start:
@@ -13,13 +13,15 @@ _init:
     xor ax, ax
     mov ds, ax
     mov es, ax
-    mov ss, ax
 
     ; Set up stack
+    mov ss, ax
     mov sp, BASE_ADDRESS
 
-    ; Relocate the .main section
-    push MAIN_SECTION_SIZE                 ; Size in bytes
+    sti  ; Restore interrupts
+
+    ; Relocate the .text section
+    push TEXT_SECTION_SIZE                 ; Size in bytes
     push BASE_ADDRESS + INIT_SECTION_SIZE  ; Source address
     push NEW_ADDRESS                       ; Destination address
     call _memcpy
@@ -50,7 +52,7 @@ _memcpy:
 
 INIT_SECTION_SIZE       equ         ($ - _start)
 
-section .main vstart=NEW_ADDRESS align=SECTION_ALIGNMENT
+section .text vstart=NEW_ADDRESS align=SECTION_ALIGNMENT follows=.init
 ; void __stdcall main(short drive_number)
 _main:
     ; Setting stack frame
@@ -143,8 +145,6 @@ _load_vbr:
     push bp
     mov  bp, sp 
 
-    mov bx, [bp + 0x04]  ; partition
-
     ; Reset disk drive 
  .reset:
     mov dx, word [bp + 0x06]  ; driver_number
@@ -154,6 +154,7 @@ _load_vbr:
 
     ; Read VBR sector form the disk
     mov ax, 0x0201  ; ah = read function, al = 1 sector
+    mov bx, [bp + 0x04]  ; partition
     mov dx, word [bp + 0x06]  ; driver_number
     mov dh, PE(bx, starting_chs)  ; Head
     mov cl, PE(bx, starting_chs + 1)  ; Sector
@@ -179,7 +180,11 @@ _epilogue:
 times PARTITION_TABLE_OFFSET - INIT_SECTION_SIZE - ($ - $$) nop  ; Padding
 parti1 istruc PartitionEntry
     at PartitionEntry.boot_flag,        db 0x80
-    at PartitionEntry.starting_chs,     db 0x00, 0x02, 0x00 
+    at PartitionEntry.starting_chs,     db 0x02, 0x03, 0x00  ; 0x00, 0x02, 0x00 
+    at PartitionEntry.system_id,        db 0x04 ; FAT16 < 32Mb
+    at PartitionEntry.ending_chs,       db 0xB3, 0x30, 0x03
+    at PartitionEntry.starting_lba,     dd 0x80  ; Sector index
+    at PartitionEntry.num_of_sectors,   dd 0x0000E800
 iend
 istruc PartitionEntry 
 iend
@@ -190,4 +195,4 @@ iend
 
 signature dw BOOTLOADER_SIGNATURE  ; Boot code magic signature
 
-MAIN_SECTION_SIZE       equ         ($ - _main)
+TEXT_SECTION_SIZE       equ         ($ - _main)
