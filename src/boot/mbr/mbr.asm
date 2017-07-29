@@ -59,7 +59,7 @@ _main:
     push bp
     mov  bp, sp 
 
-    push parti1
+    push PARTITION_TABLE
     call _find_bootable_partition
     cmp  ax, ~0  ; Check if failed to find bootable partition
     je   .error
@@ -83,7 +83,7 @@ _main:
  .error:
     int 0x18
 
-; void *__stdcall _find_bootable_partition(void *partition_table)
+; void * __stdcall _find_bootable_partition(void *partition_table)
 _find_bootable_partition:
     ; Setting stack frame
     push bp
@@ -178,20 +178,17 @@ _epilogue:
 
 
 times PARTITION_TABLE_OFFSET - INIT_SECTION_SIZE - ($ - $$) nop  ; Padding
-parti1 istruc PartitionEntry
-    at PartitionEntry.boot_flag,        db 0x80
-    at PartitionEntry.starting_chs,     db 0x02, 0x03, 0x00  ; 0x00, 0x02, 0x00 
-    at PartitionEntry.system_id,        db 0x04 ; FAT16 < 32Mb
-    at PartitionEntry.ending_chs,       db 0xB3, 0x30, 0x03
-    at PartitionEntry.starting_lba,     dd 0x80  ; Sector index
-    at PartitionEntry.num_of_sectors,   dd 0x0000E800
-iend
-istruc PartitionEntry 
-iend
-istruc PartitionEntry 
-iend
-istruc PartitionEntry 
-iend
+
+PARTITION_TABLE: 
+    times PartitionEntry_size * 4 db 0x00
+    ; istruc PartitionEntry 
+    ; iend
+    ; istruc PartitionEntry 
+    ; iend
+    ; istruc PartitionEntry 
+    ; iend
+    ; istruc PartitionEntry 
+    ; iend
 
 signature dw BOOTLOADER_SIGNATURE  ; Boot code magic signature
 

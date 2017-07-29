@@ -5,6 +5,17 @@ BOOTLOADER_SIGNATURE    equ         0xAA55
 BASE_ADDRESS            equ         0x7C00
 SECTION_ALIGNMENT       equ         0x01
 VBR_SECTOR_INDEX        equ         0x80
+BOOT_SIG_OFFSET         equ         0x1FE
+
+struc PartitionEntry
+    .boot_flag      resb 1
+    .starting_chs   resb 3
+    .system_id      resb 1
+    .ending_chs     resb 3
+    .starting_lba   resb 4
+    .num_of_sectors resb 4
+endstruc
+%define PE(obj, member) [obj + PartitionEntry. %+ member]
 
 struc DiskAddressPacket
     .size           resb 1
